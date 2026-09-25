@@ -26,7 +26,7 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
     val repoUrlConfig = StringConfigItem(
         name = "Repository URL",
         description = "Paste the GitHub or GitLab repository URL (e.g. https://github.com/owner/repo)",
-        initialValue = ""
+        initialValue = "https://github.com/capnarchie/darkan-scripts"
     ).withAction("Download / Update") {
         triggerSync()
         "Sync started"
@@ -35,13 +35,13 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
     val branchConfig = StringConfigItem(
         name = "Branch",
         description = "Repository branch to pull from (usually main or dev)",
-        initialValue = "main"
+        initialValue = "dev"
     )
 
     val status = InfoDisplayConfigItem(
         name = "Status",
         description = "Current update status",
-        initialValue = "Paste repository URL and click 'Download / Update'"
+        initialValue = "Ready to update from https://github.com/capnarchie/darkan-scripts (branch: dev)"
     )
 
     val lastUpdateDisplay = InfoDisplayConfigItem(
@@ -81,10 +81,11 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
         val rawUrl = repoUrlConfig.value.trim()
         if (rawUrl.isBlank()) {
             status.value = "Error: Please paste a valid repository URL first!"
+            stop()
             return
         }
 
-        val branch = branchConfig.value.trim().ifBlank { "main" }
+        val branch = branchConfig.value.trim().ifBlank { "dev" }
 
         isUpdating = true
         status.value = "Connecting to repository..."
@@ -95,6 +96,7 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
             } catch (e: Exception) {
                 status.value = "Error: ${e.message}"
                 e.printStackTrace()
+                stop()
             } finally {
                 isUpdating = false
             }
@@ -109,6 +111,7 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
         val zipUrls = resolveZipUrls(rawUrl, branch)
         if (zipUrls.isEmpty()) {
             status.value = "Error: Unsupported repository URL format"
+            stop()
             return
         }
 
@@ -127,6 +130,7 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
 
         if (downloadedStream == null) {
             status.value = "Error: Could not download zip from $rawUrl (checked branches: $branch, main, dev, master)"
+            stop()
             return
         }
 
@@ -177,6 +181,7 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
 
         if (extractedCount == 0) {
             status.value = "Warning: No .kts script files found in repository archive"
+            stop()
             return
         }
 
@@ -192,6 +197,7 @@ class ScriptUpdater : BotScript(), ConfigurableScript {
         lastUpdateDisplay.value = timestamp
         scriptsUpdatedDisplay.value = "$extractedCount"
         println("ScriptUpdater: Successfully synced $extractedCount script(s) from $chosenUrl at $timestamp")
+        stop()
     }
 
     private fun resolveZipUrls(url: String, preferredBranch: String): List<String> {
