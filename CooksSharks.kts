@@ -1,22 +1,109 @@
+data class FishInfo(
+    val displayName: String,
+    val rawId: Int,
+    val rawName: String
+)
+
 @ScriptDescription(
     author = "Erx",
-    name = "Cooks' Guild Sharks",
-    version = "1.2",
-    description = "Cooks raw sharks at the Cooks' Guild Range with automatic banking",
+    name = "Cooks' Guild Cooker",
+    version = "2.2",
+    description = "Cooks raw fish at the Cooks' Guild Range with automated banking",
     category = ScriptCategory.COOKING
 )
-class CooksSharks : BotScript() {
+class CooksSharks : BotScript(), ConfigurableScript {
+
+    val targetFish = StringConfigItem(
+        name = "Fish to cook",
+        description = "Type fish: shark, rocktail, monkfish, swordfish, lobster, bass, tuna, salmon, trout",
+        initialValue = "shark"
+    )
+
+    val status = InfoDisplayConfigItem(
+        name = "Status",
+        description = "Current script activity",
+        initialValue = "Initializing"
+    )
+
+    val cookedCountDisplay = InfoDisplayConfigItem(
+        name = "Fish cooked",
+        description = "Total fish cooked this session",
+        initialValue = "0"
+    )
+
+    val xpDisplay = InfoDisplayConfigItem(
+        name = "XP Gained (XP/hr)",
+        description = "Cooking XP gained and hourly rate",
+        initialValue = "0 (0 XP/hr)"
+    )
 
     private val cooksGuildRangeTile = Tile(3145, 3453, 0)
     private val standAtRangeTile = Tile(3146, 3452, 0)
     private val bankBoothTile = Tile(3147, 3450, 0)
 
+    private var startCookingXp = 0
+    private var startTime = 0L
+    private var fishCooked = 0
+
+    private fun getSelectedFish(): FishInfo {
+        val input = targetFish.value.trim().lowercase()
+        return when {
+            input.contains("rock") -> FishInfo("Rocktail", 15270, "raw rocktail")
+            input.contains("manta") -> FishInfo("Manta ray", 389, "raw manta ray")
+            input.contains("turtle") -> FishInfo("Sea turtle", 395, "raw sea turtle")
+            input.contains("cave") || input.contains("eel") -> FishInfo("Cave eel", 5001, "raw cave eel")
+            input.contains("monk") -> FishInfo("Monkfish", 7944, "raw monkfish")
+            input.contains("sword") -> FishInfo("Swordfish", 371, "raw swordfish")
+            input.contains("lob") -> FishInfo("Lobster", 377, "raw lobster")
+            input.contains("bass") -> FishInfo("Bass", 363, "raw bass")
+            input.contains("tuna") -> FishInfo("Tuna", 359, "raw tuna")
+            input.contains("salm") -> FishInfo("Salmon", 329, "raw salmon")
+            input.contains("trout") -> FishInfo("Trout", 335, "raw trout")
+            input.contains("pike") -> FishInfo("Pike", 349, "raw pike")
+            input.contains("herr") -> FishInfo("Herring", 345, "raw herring")
+            input.contains("mack") -> FishInfo("Mackerel", 353, "raw mackerel")
+            input.contains("sard") -> FishInfo("Sardine", 327, "raw sardine")
+            input.contains("anch") -> FishInfo("Anchovies", 321, "raw anchovies")
+            input.contains("shrimp") -> FishInfo("Shrimp", 317, "raw shrimp")
+            input.contains("cray") -> FishInfo("Crayfish", 13435, "raw crayfish")
+            else -> FishInfo("Shark", 383, "raw shark")
+        }
+    }
+
+    override fun onStart() {
+        startCookingXp = getXp(Skill.COOKING.ordinal)
+        startTime = System.currentTimeMillis()
+        fishCooked = 0
+        setRunning(true)
+        status.value = "Starting"
+        val fish = getSelectedFish()
+        println("Cooks' Guild Cooker started. Target: ${fish.displayName}")
+    }
+
+    override fun onEvent(event: Event) {
+        if (event is XPDrop && event.skill == Skill.COOKING) {
+            fishCooked++
+            cookedCountDisplay.value = "$fishCooked"
+            updateStats()
+        }
+    }
+
+    private fun updateStats() {
+        if (startTime <= 0L) return
+        val currentXp = getXp(Skill.COOKING.ordinal)
+        val gained = (currentXp - startCookingXp).coerceAtLeast(0)
+        val xpPerHour = getFormattedXpPerHour(Skill.COOKING.ordinal, startCookingXp, startTime)
+        xpDisplay.value = "$gained ($xpPerHour)"
+    }
+
     override suspend fun loop() {
         try {
-            if (hasRawSharks()) {
-                cookSharks()
+            updateStats()
+            val fish = getSelectedFish()
+            if (hasRawFish(fish)) {
+                cookFish(fish)
             } else {
-                handleBanking()
+                handleBanking(fish)
             }
         } catch (e: Exception) {
             println("Error in CooksSharks: ${e.message}")
@@ -24,8 +111,8 @@ class CooksSharks : BotScript() {
         }
     }
 
-    private fun hasRawSharks(): Boolean {
-        return inventory.contains(383, 1) || inventory.contains("raw shark", 1)
+    private fun hasRawFish(fish: FishInfo): Boolean {
+        return inventory.contains(fish.rawId, 1) || inventory.contains(fish.rawName, 1)
     }
 
     private fun getCookingRange(): WorldObject? {
@@ -39,16 +126,18 @@ class CooksSharks : BotScript() {
         }.minByOrNull { Utils.distance(pos, it) }
     }
 
-    private suspend fun cookSharks() {
-        // 1. If actively cooking / animating, just wait
+    private suspend fun cookFish(fish: FishInfo) {
+        // 1. If actively cooking / animating, wait
         if (isAnimating()) {
+            status.value = "Cooking ${fish.displayName}"
             delay(600)
             return
         }
 
         // 2. If Make-X dialogue is open, start cooking
         if (interfaceOpen(905)) {
-            println("Make-X open, selecting Cook Sharks")
+            status.value = "Starting cooking batch"
+            println("Make-X open, selecting Cook ${fish.displayName}")
             clickDialogue(905, 14)
             clickSkillDialogue(1)
             delayUntil(5000) { isAnimating() }
@@ -58,39 +147,37 @@ class CooksSharks : BotScript() {
         // 3. Make sure we're near the range
         val pos = getMyPlayerPosition()
         if (Utils.distance(pos, standAtRangeTile) > 3) {
+            status.value = "Walking to range"
             println("Walking to range...")
             walkTo(standAtRangeTile)
             delayUntil(6000) { Utils.distance(getMyPlayerPosition(), standAtRangeTile) <= 2 || !isWalking() }
         }
 
-        // 4. Use raw shark on Range
+        // 4. Use raw fish on Range
+        status.value = "Using fish on range"
         val range = getCookingRange()
         val targetTile = range?.let { Tile(it.x, it.y, it.z) } ?: cooksGuildRangeTile
         val targetId = range?.id ?: 24283
 
-        val rawSlot = inventory.getSlotByItem(383)
+        val rawSlot = inventory.getSlotByItem(fish.rawId)
         if (rawSlot != -1) {
-            println("Using raw shark on Range (id=$targetId, tile=$targetTile)...")
-            if (range != null) {
-                sendItemOnObject("raw shark", range)
-            } else {
-                val rawItemId = inventory.getItem(rawSlot)
-                sendItemOnObject(rawItemId, targetId, targetTile.x, targetTile.y)
-            }
+            println("Using ${fish.rawName} on Range (id=$targetId, tile=$targetTile)...")
+            sendItemOnObject(fish.rawId, targetId, targetTile.x, targetTile.y)
             delayUntil(5000) { interfaceOpen(905) || isAnimating() }
         }
 
         // 5. Select Cook if dialogue opened
         if (interfaceOpen(905)) {
             delay(300)
-            println("Make-X opened, selecting Cook Sharks")
+            status.value = "Selecting Cook in Make-X"
+            println("Make-X opened, selecting Cook ${fish.displayName}")
             clickDialogue(905, 14)
             clickSkillDialogue(1)
             delayUntil(5000) { isAnimating() }
         }
     }
 
-    private suspend fun handleBanking() {
+    private suspend fun handleBanking(fish: FishInfo) {
         // 1. Wait for any residual cooking animation to finish before interacting with bank
         if (isAnimating()) {
             delayUntil(3000) { !isAnimating() }
@@ -100,11 +187,13 @@ class CooksSharks : BotScript() {
         if (!bankIsOpen() && !interfaceOpen(762)) {
             val pos = getMyPlayerPosition()
             if (Utils.distance(pos, bankBoothTile) > 2) {
+                status.value = "Walking to bank"
                 println("Walking to bank booth...")
                 walkTo(bankBoothTile)
                 delayUntil(6000) { Utils.distance(getMyPlayerPosition(), bankBoothTile) <= 2 || !isWalking() }
             }
 
+            status.value = "Opening bank"
             println("Opening bank booth...")
             val booth = getNearbyObjects().find { it.id == 19230 }
             if (booth != null) {
@@ -128,29 +217,38 @@ class CooksSharks : BotScript() {
             }
         }
 
-        // 3. Deposit everything
-        println("Depositing cooked sharks / items...")
-        bankAll()
-        delayUntil(3000) { inventory.freeSlots() >= 28 }
-        delay(300)
-
-        // Wait for bank contents to be ready
-        delayUntil(2000) { bank.container.itemIds.any { it != -1 } }
-
-        // 4. Withdraw raw sharks
-        println("Withdrawing raw sharks...")
-        withdrawAllOfItem("raw shark")
-        delayUntil(3000) { hasRawSharks() }
-
-        // Fallback by ID 383 if withdraw by name didn't populate inventory
-        if (!hasRawSharks()) {
-            withdrawAllOfItem(383)
-            delayUntil(3000) { hasRawSharks() }
+        // 3. Deposit everything if inventory has items
+        if (inventory.freeSlots() < 28) {
+            status.value = "Depositing items"
+            println("Depositing items...")
+            bankAll()
+            delayUntil(3000) { inventory.freeSlots() >= 28 }
+            delay(300)
         }
 
-        // Check if bank is out of raw sharks
-        if (!hasRawSharks()) {
-            println("Out of raw sharks in bank! Stopping script.")
+        // 4. Wait for bank contents to populate
+        delayUntil(3000) { bank.container.itemIds.any { it != -1 } }
+
+        // Check if bank has the fish
+        status.value = "Withdrawing ${fish.displayName}"
+        println("Withdrawing ${fish.rawName}...")
+
+        // Wait up to 5s for the fish to be visible in the bank slots
+        delayUntil(5000) { bank.getSlotByItem(fish.rawId) != -1 }
+
+        withdrawAllOfItem(fish.rawId)
+        delayUntil(4000) { hasRawFish(fish) }
+
+        // Fallback by name if withdraw by ID didn't pull items
+        if (!hasRawFish(fish)) {
+            withdrawAllOfItem(fish.rawName)
+            delayUntil(3000) { hasRawFish(fish) }
+        }
+
+        // Check if out of fish
+        if (!hasRawFish(fish)) {
+            println("Out of ${fish.rawName} in bank! Stopping script.")
+            status.value = "Out of fish"
             closeInterfaces()
             stop()
             return
@@ -161,6 +259,7 @@ class CooksSharks : BotScript() {
         delayUntil(2000) { !bankIsOpen() && !interfaceOpen(762) }
 
         // 5. Walk back to range
+        status.value = "Walking to range"
         println("Heading to range...")
         walkTo(standAtRangeTile)
         delayUntil(6000) { Utils.distance(getMyPlayerPosition(), standAtRangeTile) <= 2 || !isWalking() }
