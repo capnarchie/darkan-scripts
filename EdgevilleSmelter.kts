@@ -1,5 +1,5 @@
 @ScriptDescription(
-    author = "Trent",
+    author = "Capnarchie",
     name = "Edgeville Smelter",
     version = "2.0",
     description = "Smelts metal bars at the Edgeville furnace with automatic banking",

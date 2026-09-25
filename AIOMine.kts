@@ -1,7 +1,7 @@
 import com.darkan.bot.scripts.withAction
 
 @ScriptDescription(
-    author = "Trent",
+    author = "Capnarchie",
     name = "AIOMine",
     version = "1.1",
     description = "Mines the configured rock and banks when the inventory is full",

@@ -15,7 +15,7 @@ import java.util.Date
 import java.util.zip.ZipInputStream
 
 @ScriptDescription(
-    author = "Trent",
+    author = "Capnarchie",
     name = "Script Updater",
     version = "1.0",
     description = "Downloads and updates bot scripts from any public GitHub or GitLab repository",
