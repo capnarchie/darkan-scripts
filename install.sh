@@ -10,6 +10,7 @@ scans for scripts, overwriting files of the same name. Press "Reload scripts"
 in the bot sidebar afterwards.
 
   --clean     Also delete .kts files in the destination that are not in this repository
+              (private/ is never copied or deleted; it is your own folder)
   --dest DIR  Install somewhere other than the detected folder (also: DARKAN_SCRIPTS_DIR)
 USAGE
 }
@@ -48,31 +49,30 @@ if [ "$dest" = "$repo" ]; then
 fi
 
 count=0
-for script in "$repo"/*.kts; do
-    [ -e "$script" ] || continue
-    cp -f "$script" "$dest/"
-    count=$((count + 1))
-done
-
 libs=0
-if [ -d "$repo/lib" ]; then
-    mkdir -p "$dest/lib"
-    for shared in "$repo"/lib/*.kts; do
-        [ -e "$shared" ] || continue
-        cp -f "$shared" "$dest/lib/"
-        libs=$((libs + 1))
-    done
-fi
+while IFS= read -r relative; do
+    [ -n "$relative" ] || continue
+    target="$dest/$relative"
+    mkdir -p "$(dirname -- "$target")"
+    cp -f "$repo/$relative" "$target"
+    case "$relative" in
+        lib/*) libs=$((libs + 1)) ;;
+        *) count=$((count + 1)) ;;
+    esac
+done <<EOF
+$(cd "$repo" && find . -name '*.kts' -not -path './.git/*' -not -path './.claude/*' -not -path './private/*' | sed 's|^\./||' | sort)
+EOF
 
 if [ "$clean" -eq 1 ]; then
-    for existing in "$dest"/*.kts "$dest"/lib/*.kts; do
-        [ -e "$existing" ] || continue
-        relative=${existing#"$dest"/}
+    while IFS= read -r relative; do
+        [ -n "$relative" ] || continue
         if [ ! -e "$repo/$relative" ]; then
-            rm -f -- "$existing"
+            rm -f -- "$dest/$relative"
             echo "Removed stale $relative"
         fi
-    done
+    done <<EOF
+$(cd "$dest" && find . -name '*.kts' -not -path './.git/*' -not -path './.claude/*' -not -path './private/*' | sed 's|^\./||' | sort)
+EOF
 fi
 
 echo "Installed $count script(s) and $libs shared file(s) into $dest"

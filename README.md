@@ -33,6 +33,19 @@ fork (both go in the launcher's extra JVM args).
 Every `.kts` file in the folder is compiled on reload, so edits take effect without a restart.
 Compiled scripts (`.jar` / `.class`) are also picked up from the same folder.
 
+### Organising your scripts
+
+The client loads every script in the folder tree, so group them into folders however you like.
+Two folders are special:
+
+- `lib/` holds shared code compiled into every script, not scripts themselves.
+- `private/` is yours: git ignores it and the installers never copy into or delete from it, so
+  scripts you keep there stay off GitLab and still load.
+
+One catch: a script's compiled name comes from its file name alone, so file names must be unique
+across the whole tree. If you copy `Combat.kts` into `private/` to modify it, rename it, or only
+one of the two will load.
+
 ## Writing a script
 
 A script is a class extending `BotScript`, annotated with `@ScriptDescription`, and the file

@@ -9,11 +9,16 @@ the full Bot API reference and the verification workflow. Everything below is th
 
 ## Repository layout
 
-- `*.kts` in the root: one script per file. The client scans only the root for scripts.
+- `*.kts` anywhere in the tree: one script per file. The client walks the whole folder tree, so
+  scripts may be grouped into folders; file names must stay unique across it, because a compiled
+  script is named after its file alone.
 - `lib/*.kts`: shared code compiled into every script (parallel helpers such as `KeepSpecOn`,
-  shared enums, extension functions). Declarations only, no trailing expression.
-- `install.sh` / `install.ps1`: copy every root `.kts` and `lib/*.kts` into the client's
-  scripts folder, for checkouts that live somewhere else.
+  shared enums, extension functions). Declarations only, no trailing expression. The one folder
+  not scanned for scripts.
+- `private/`: the user's own scripts. Ignored by git, skipped by the installers, still loaded.
+  Never add repository content there.
+- `install.sh` / `install.ps1`: copy the `.kts` tree into the client's scripts folder, for
+  checkouts that live somewhere else.
 - `.claude/skills/darkan-script-dev/`: the skill and API reference.
 - `README.md`: player-facing instructions.
 

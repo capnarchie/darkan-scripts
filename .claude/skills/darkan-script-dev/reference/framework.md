@@ -28,7 +28,8 @@ jvm { dependenciesFromCurrentContext(wholeClasspath = true) }
 ```
 
 Every `.kts` under `<scripts>/lib/` (recursive, sorted by path) is added as
-`importScripts(...)`, so its declarations are in scope for the script being compiled; each
+`importScripts(...)` for every script in the tree, so its declarations are in scope for the
+script being compiled; each
 script compiles the lib files again in its own class loader, so a lib class ends up as
 `KeepSpecOn$KeepSpecOn` inside every importing script. The whole client classpath is
 available, so any `com.jagex.*` class can be imported. After compiling, the loader
@@ -38,8 +39,11 @@ expression this is that value; it must be a `Script`. Its class is what gets reg
 `visible = true`. Scripts are keyed by `"$name v$version by $author"`.
 
 Discovery order on `ScriptExecutor.loadScripts()`: compiled `.jar`/`.class` files in the
-scripts folder, scripts compiled into the client, then root `.kts` files (never `lib/`). The
-folder is `~/.darkan/scripts` (`System.getProperty("user.home")`). Load runs at client
+scripts folder, scripts compiled into the client, then `.kts` files found by walking the whole
+tree (`KotlinScriptScanner.scripts()`), skipping `lib/`, hidden folders and `.git`. Because a
+compiled script's class name comes from its file name alone, a second file with the same name
+anywhere in the tree is skipped with a message rather than shadowing the first. The folder is
+`~/.darkan/scripts` (`System.getProperty("user.home")`). Load runs at client
 startup (after `ScriptRepository.sync()` when the bot is enabled), on **Reload scripts** and
 after **Update scripts** in the sidebar; `ScriptExecutor.addReloadListener` observes reloads.
 

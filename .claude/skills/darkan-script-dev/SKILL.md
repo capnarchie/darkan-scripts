@@ -91,6 +91,9 @@ Rules that follow from how the loader works (`KotlinScriptLoader.kt`):
   script class (`IronMiner$IronMiner`), so two files may reuse a helper class name without
   colliding. Two scripts in the same file are allowed but the file registers only the returned
   one; other classes are helpers.
+- **File names must be unique across the whole tree.** The compiled class name comes from the
+  file name alone, not its folder, so `Combat.kts` and `private/Combat.kts` both become
+  `Combat$Combat`. The client loads the first and skips the second with a message; rename one.
 - **Script files cannot see each other, but every file under `lib/` is compiled into every
   script.** Put helpers used by more than one script (a parallel script such as
   `lib/KeepSpecOn.kts`, shared enums, extension functions) in `lib/` and use them unqualified.
@@ -105,8 +108,11 @@ Rules that follow from how the loader works (`KotlinScriptLoader.kt`):
   not listed. The sidebar shows `name vversion by author` and groups by `category`.
 - **No-arg constructor.** The sidebar starts a script with `getDeclaredConstructor().newInstance()`.
   Do not add constructor parameters.
-- The client only scans the **root** of the scripts folder, non-recursively, for `*.kts`
-  (and `*.jar`/`*.class` for compiled scripts). Subfolders are ignored.
+- The client scans the **whole folder tree** for `*.kts` (and `*.jar`/`*.class` for compiled
+  scripts), so users may group scripts into folders however they like. Two folders are special:
+  `lib/` holds shared code rather than scripts (section 5), and hidden folders plus `.git` are
+  skipped. `private/` is ignored by git and skipped by the installers, so it is where a user
+  keeps scripts that are theirs alone; they still load.
 
 ## 2. How a script runs
 
@@ -268,7 +274,8 @@ private fun syncSpecKeeper() {
 
 Every `.kts` file under `lib/` (recursively) is imported into each script's compilation as a
 Kotlin *imported script* (`ScriptCompilationConfiguration.importScripts`), so its top-level
-classes, objects, functions and values resolve unqualified from any script in the root.
+classes, objects, functions and values resolve unqualified from any script anywhere in the
+tree. `lib/` is the one folder that is not scanned for scripts.
 
 ```kotlin
 // lib/KeepSpecOn.kts: a parallel helper, no @ScriptDescription, no trailing expression
@@ -298,6 +305,8 @@ Rules for `lib/` files:
   here too.
 - Names must be unique across `lib/`; two files declaring `class Foo` break every script with
   an ambiguity error. Prefer one file per helper, named after it.
+- Only the top-level `lib/` is shared. A nested folder called `lib` anywhere else holds
+  ordinary scripts.
 - A compile error in any lib file breaks every script. `ScriptCheck` compiles each lib file on
   its own first and reports its errors with `file:line:col`; the same error then repeats under
   every script without a location. Fix `lib/` first.
