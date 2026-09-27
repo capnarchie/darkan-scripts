@@ -1,7 +1,7 @@
 import com.jagex.game.runetek5.entity.pathingentity.npc.NpcEntity
 
 @ScriptDescription(
-    author = "Trent",
+    author = "Capnarchie",
     name = "Advanced Combat",
     version = "1.2",
     description = "Attacks targets, eats food at low HP, manages Vampyrism aura, loots charms, keeps target lock, and manages spec",
