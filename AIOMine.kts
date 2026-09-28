@@ -3,14 +3,20 @@ import com.darkan.bot.scripts.withAction
 @ScriptDescription(
     author = "Capnarchie",
     name = "AIOMine",
-    version = "1.1",
-    description = "Mines the configured rock and banks when the inventory is full",
+    version = "1.2",
+    description = "Mines the configured primary or secondary rock and banks when the inventory is full",
     category = ScriptCategory.MINING
 )
 class AIOMine : BotScript(), ConfigurableScript {
-    val target = StringConfigItem(
-        name = "Target",
-        description = "Select target to mine",
+    val primaryTarget = StringConfigItem(
+        name = "Primary Target",
+        description = "Primary ore/rock to mine",
+        initialValue = "None"
+    )
+
+    val secondaryTarget = StringConfigItem(
+        name = "Secondary Target",
+        description = "Fallback ore/rock to mine if primary is not found",
         initialValue = "None"
     )
 
@@ -101,7 +107,24 @@ class AIOMine : BotScript(), ConfigurableScript {
         }
         status.value = "Mining"
         if (isAnimating()) return
-        clickClosestObject(target.value, option.value)
+
+        val primary = getClosestObject(primaryTarget.value)
+        val secondary = getClosestObject(secondaryTarget.value)
+        val targetObj = primary ?: secondary
+
+        if (targetObj == null) {
+            status.value = "No targets found"
+            delay(1000)
+            return
+        }
+
+        if (primary != null) {
+            status.value = "Mining (primary)"
+        } else {
+            status.value = "Mining (secondary)"
+        }
+
+        clickObject(targetObj, option.value)
         delayUntil(2000) { isAnimating() }
     }
 }
